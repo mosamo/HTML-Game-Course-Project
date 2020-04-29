@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Project Game</title>
+</head>
+
+<body>
+    <canvas id="canvas" style="border: 1px black solid; margin: auto; display: block;" width="800"
+        height="600">
+      Canvas Element is broken or your broswer doesn't support HTML5 !
+      </canvas>
+    <script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+// images
+const playerImage = new Image(); playerImage.src = "images/player.png";
+const rockImage = new Image(); rockImage.src = "images/cubeRock.png";
+const planksImage = new Image(); planksImage.src = "images/plank.png";
+const backgroungImage = new Image(); backgroungImage.src = "images/bg.png";
+const redMetalImage = new Image(); redMetalImage.src = "images/redMetal.png"
+const winFlagImage = new Image(); winFlagImage.src = "images/winflag.png"
+const ladderImage = new Image(); ladderImage.src = "images/ladder.png";
+const treasureImage = new Image(); treasureImage.src = "images/treasure.png";
+const gemBlueImage = new Image(); gemBlueImage.src = "images/gemBlue.png";
+const raysImage = new Image(); raysImage.src = "images/rays.png";
+const gemImage = new Image(); gemImage.src = "images/gem.png";
+const desertImage = new Image(); desertImage.src = "images/desert.png";
+const tentImage = new Image(); tentImage.src = "images/tent.png";
+const heartImage = new Image(); heartImage.src = "images/heart.png";
+
+// sounds
+const willheimSFX = new Audio("sounds/willheim.wav");
+const gemSFX = new Audio("sounds/collectGem.mp3");
+const mainMUSIC = new Audio("sounds/mainSong.ogg");
+mainMUSIC.volume = 0.05;
+gemSFX.volume = 0.08;
+willheimSFX.volume = 0.15;
+
+// basic player statistics
+var playerX = 200;
+var playerY = canvas.height - 101;
+const playerWidth = 50;
+const playerHeight = 50;
+
+// player state is used to determine:
+// when jumps end, player is falling, when level ends
+var playerState = "standing";
+var playerDirection = "none";
+
+var playerSpeed = 5;
+var playerJumpHeight = 12;
+var playerCanJump = true;
+var playerJumpCooldown = 10;
+
+// main menu variable
+var menuNumber = 1;
+
+// additional behavior variables:
+var playerJumpOrigin; // saves origin of jump
+const gravityStrength = 10; // self explanatory
+var activateGravity = false; // if this is true gravity will activate
+var gravityAffectedPlayer = false; // if this is true the player will drop
+var arrowVerificator = [false, false]; // checks if both or no arrow keys are pressed
+var cosineCounter = 0; // used to count jump length
+const cosineSpeed = 0.1; // used to count jump speed
+var movingToNextLevel = false;
+var level = 0; // level being played (to determine obstacles locations and walls)
+var counter = 1; // used for animation
+var counterTwo = 1; // used to delay some parts
+var imageDirection = "right"; // holds the image on which direction the player is facing
+const gemsRequired = [22, 29, 26]; // gems required for each level
+var gemCount = 0; //  50 
+var blueCount = 0; // 200
+var totalGems = 0; // You have acquired 80/80
+var lives = 10; // 
+var MouseX; // Mouse
+var MouseY;
+var MouseActive = false;
+var TouchActive = false;
+var touchX; var touchX2;
+var touchY; var touchY2;
+var numberOfTouches = 0;
+var arrowVerificatorTouch = [false, false];
+
+// Next Level Variables
+// where player spawns if he died
+var putMeHereIfIDiedX = playerX;
+var putMeHereIfIDiedY = playerY;
+var nextWorldDelay = 0; // used to wait a little bit before moving to next world
+var nextWorldText = ["", "", ""];
+var gameHasFinished = false;
+
+// wall locations: [ ]
+//  walls sub arrays:  [ x, y, width, height, level, image]
+//  objects sub arrays: [ x, y, width, height, level, image, active]
+var wallsLocations;
+var objectsData;
+
+assignArrayValues();
+
+function updateScreen() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (level != 10) {
+    ctx.drawImage(backgroungImage, 0, 0);
+  } else if (level == 10 && lives > 0) {
+    // good ending
+    ctx.drawImage(desertImage, -150, -50, 600, 400);
+  } else if (level == 10) {
+    // bad
+    ctx.drawImage(backgroungImage, 0, 0);
+  }
+  
+  if (level != 0) {
+    mainMUSIC.play();
+    arrowCheck();
+    playerMovement();
+    buildWalls(false);
+  }
+  if (gameHasFinished == true) {
+    countScores();
+  }
+  if (level != 0) { // if not menu because menu is level 0
+    placeObjects(); // draws Gems if not in the menu
+    if (level != 10) {
+      checkForCollisionWithObjects(); // if not in menu check for Gem collision
+      checkForLevelCompletion(); // if not in menu, check for next stage
+    }
+    if (!gameHasFinished) {
+      drawHUD();
+    }
+    // debugMode();
+    counter++;
+    if (counter == 60) {
+      counter = 1;
+    }
+  } else { // if in the menu
+    drawMainMenu(); // draws the menu
+  }
+  window.requestAnimationFrame(updateScreen); 
+}
+
+function drawHUD() {
+  ctx.strokeStyle = "rgba(0,0,0,0.9)";
+  ctx.fillStyle = "rgba(0,0,255,0.5)";
+  ctx.width = 5;
+  ctx.beginPath();
+  ctx.moveTo(0, 70);
+  ctx.lineTo(155, 70);
+  ctx.lineTo(155, 70);
+  ctx.lineTo(180, 35);
+  ctx.lineTo(0, 35);
+  ctx.stroke();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.0)";
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  ctx.width = 1;
+  ctx.font = "24px Arial";
+  ctx.fillText("Lives: " + lives + " x ", 10, 60);
+  ctx.strokeStyle = "rgba(0,0,0,0.9)";
+  ctx.fillStyle = "rgba(0,0,255,0.5)";
+  ctx.width = 5;
+  ctx.beginPath();
+  ctx.moveTo(0, 35);
+  ctx.lineTo(195, 35);
+  ctx.lineTo(195, 35);
+  ctx.lineTo(220, 0);
+  ctx.lineTo(0, 0);
+  ctx.stroke();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.0)";
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  ctx.fillText("Gems: " + (totalGems + blueCount) + " / 80", 10, 27);
+
+  drawHUDPictures(); // put heart and small gem
+}
+
+function drawHUDPictures() {
+  let heartX = 130;
+  let heartY = 45;
+  let gemX = 172;
+  let gemY = 10;
+  if (counter < 7) {
+    ctx.drawImage(heartImage, 133 * 0, 0, 133, 110, heartX, heartY, 22, 18);
+    // (image, x, y, w, h);
+    // (image, x, y, w, h, sourcex, soucey source width, source heigh)
+    // (image, x, y, 100%, 100%) = (image, x, y)
+  } else if (counter < 13) {
+    ctx.drawImage(heartImage, 133 * 1, 0, 133, 110, heartX, heartY, 22, 18);
+  } else if (counter < 19) {
+    ctx.drawImage(heartImage, 133 * 2, 0, 133, 110, heartX, heartY, 22, 18);
+  } else if (counter < 25) {
+    ctx.drawImage(heartImage, 133 * 3, 0, 133, 110, heartX, heartY, 22, 18);
+  } else if (counter < 31) {
+    ctx.drawImage(heartImage, 133 * 4, 0, 133, 110, heartX, heartY, 22, 18);
+  } else if (counter < 37) {
+    ctx.drawImage(heartImage, 133 * 5, 0, 133, 110, heartX, heartY, 22, 18);
+  } else if (counter < 43) {
+    ctx.drawImage(heartImage, 133 * 6, 0, 133, 110, heartX, heartY, 22, 18);
+  } else if (counter < 49) {
+    ctx.drawImage(heartImage, 133 * 7, 0, 133, 110, heartX, heartY, 22, 18);
+  } else if (counter < 55) {
+    ctx.drawImage(heartImage, 133 * 8, 0, 133, 110, heartX, heartY, 22, 18);
+  } else if (counter < 61) {
+    ctx.drawImage(heartImage, 133 * 9, 0, 133, 110, heartX, heartY, 22, 18);
+  }
+  if (counter < 10) {
+    ctx.drawImage(gemImage, 32 * 0, 0, 32, 34, gemX, gemY, 20, 20);
+  } else if (counter < 20) {
+    ctx.drawImage(gemImage, 32 * 1, 0, 32, 32, gemX, gemY, 20, 20);
+  } else if (counter < 30) {
+    ctx.drawImage(gemImage, 32 * 2, 0, 32, 32, gemX, gemY, 20, 20);
+  } else if (counter < 40) {
+    ctx.drawImage(gemImage, 32 * 3, 0, 32, 32, gemX, gemY, 20, 20);
+  } else if (counter < 50) {
+    ctx.drawImage(gemImage, 32 * 4, 0, 32, 32, gemX, gemY, 20, 20);
+  } else if (counter < 61) {
+    ctx.drawImage(gemImage, 32 * 5, 0, 32, 32, gemX, gemY, 20, 20);
+  }
+}
+
+function drawMainMenu() {
+  if (menuNumber == 3) {
+    // levels select menu
+    ctx.strokeStyle = "white"
+    ctx.lineWidth = 4;
+    ctx.font = "68px Arial";
+    ctx.fillStyle = "rgba(0,0,0,0)";
+    ctx.beginPath();
+    ctx.drawImage(rockImage, 300, 200, 200, 200);
+    ctx.strokeRect(325, 225, 150, 150);
+    ctx.drawImage(planksImage, 325, 225, 150, 150);
+    ctx.beginPath();
+    ctx.drawImage(rockImage, 550, 200, 200, 200);
+    ctx.strokeRect(575, 225, 150, 150);
+    ctx.drawImage(planksImage, 575, 225, 150, 150);
+    ctx.beginPath();
+    ctx.drawImage(rockImage, 50, 200, 200, 200);
+    ctx.strokeRect(75, 225, 150, 150);
+    ctx.drawImage(planksImage, 75, 225, 150, 150);
+    ctx.fillStyle = "black";
+    ctx.strokeStyle = "white"
+    ctx.lineWidth = 2;
+    ctx.fillText("1", 132, 310);
+    ctx.strokeText("1", 132, 310);
+    ctx.fillText("2", 383, 310);
+    ctx.strokeText("2", 383, 310);
+    ctx.fillText("3", 635, 310);
+    ctx.strokeText("3", 635, 310);
+    if (MouseActive && MouseX > 575 && MouseX < 725 &&
+      MouseY > 225 && MouseY < 375) {
+      level = 7;
+    } else if (MouseActive && MouseX > 325 && MouseX < 475 &&
+      MouseY > 225 && MouseY < 375) {
+      level = 4;
+    } else if (MouseActive && MouseX > 75 && MouseX < 225 &&
+      MouseY > 225 && MouseY < 375) {
+      level = 1;
+    }
+    
+    ctx.font = "50px Arial";
+    ctx.fillStyle = "black";
+    ctx.strokeText("Level Select:", 245, 120);
+    
+    // instructions menu
+  } else if (menuNumber == 2) {
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.fillStyle = "grey";
+    ctx.strokeStyle = "black";
+    ctx.drawImage(rockImage, 150, 60, 500, 480);
+    ctx.fillRect(180, 95, 440, 415);
+    ctx.strokeRect(180, 95, 440, 415);
+    ctx.font = "24px Georgia";
+    ctx.strokeStyle = "rgba(0,0,0,0)";
+    ctx.fillStyle = "black";
+    ctx.fillText(" Keyboard Controls: ", 190, 130);
+    ctx.font = "24px Georgia";
+    ctx.fillText(" Left Key [🡄]                       : Moves Left ", 190, 170);
+    ctx.fillText(" Right Key [🡆]                    : Moves Right ", 190, 210);
+    ctx.fillText(" Up Key [🡅]                         : Jump ", 190, 250);
+    ctx.beginPath();
+    ctx.strokeStyle = "black";
+    ctx.moveTo(180, 270);
+    ctx.lineTo(620, 270);
+    ctx.stroke();
+    ctx.fillText(" Touch Controls: ", 190, 308);
+    ctx.fillText("  Touch Left Side                : Moves Left", 186, 348);
+    ctx.fillText("  Touch Right Side             : Moves Right", 186, 385);
+    ctx.fillText("  Touch Both Sides             : Jump", 186, 422);
+    ctx.beginPath();
+    ctx.moveTo(180, 440);
+    ctx.lineTo(620, 440);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "white";
+    ctx.strokeRect(330, 452, 160, 46);
+    ctx.drawImage(planksImage, 330, 452, 160, 46);
+    ctx.font = "26px Georgia";
+    ctx.fillStyle = "white";
+    ctx.strokeStyle = "rgba(0,0,0,0)";
+    ctx.fillText("Back", 382, 484);
+    if (MouseActive && MouseX > 330 && MouseX < 490 &&
+      MouseY > 452 && MouseY < 498) {
+      menuNumber = 1;
+    }
+    // main menu
+  } else if (menuNumber == 1) {
+    ctx.strokeStyle = "white"
+    ctx.lineWidth = 4;
+    ctx.font = "68px Georgia";
+    ctx.drawImage(rockImage, 150, 50, 500, 200);
+    ctx.drawImage(rockImage, 150, 300, 500, 250);
+    ctx.beginPath();
+    ctx.strokeRect(175, 80, 450, 150);
+    ctx.drawImage(planksImage, 175, 80, 450, 150);
+    ctx.beginPath();
+    ctx.strokeRect(275, 335, 260, 80);
+    ctx.drawImage(planksImage, 275, 335, 260, 80);
+    ctx.strokeRect(275, 445, 260, 80);
+    ctx.drawImage(planksImage, 275, 445, 260, 80);
+    ctx.lineWidth = 1;
+    ctx.fillStyle = "Navy";
+    ctx.strokeStyle = "white";
+    ctx.fillText("Gem Hunter", 213, 150);
+    ctx.strokeText("Gem Hunter", 213, 150);
+    ctx.lineWidth = 0.5;
+    ctx.font = "50px Georgia";
+    ctx.fillText("HCT Project", 268, 206);
+    ctx.strokeText("HCT Project", 268, 206);
+    ctx.lineWidth = 0.5;
+    ctx.font = "40px Georgia";
+    ctx.fillStyle = "white";
+    ctx.strokeStyle = "rgba(0,0,0,0)";
+    ctx.fillText("Play", 368, 388);
+    ctx.strokeText("Play", 368, 388);
+    ctx.font = "40px Georgia";
+    ctx.fillStyle = "white";
+    ctx.strokeStyle = "rgba(0,0,0,0)";
+    ctx.fillText("Instructions", 298, 498);
+    ctx.strokeText("Instructions", 298, 498);
+    if (MouseActive && MouseX > 275 && MouseX < 535 &&
+      MouseY > 335 && MouseY < 415) {
+      menuNumber = 3;
+    } else if (MouseActive && MouseX > 275 && MouseX < 535 &&
+           MouseY > 445 && MouseY < 525) {
+      menuNumber = 2;
+    }
+  }
+  MouseActive = false;
+}
+
+function countScores() { // if level == 10 => final screen with tent
+  ctx.fillStyle = "Black";
+  ctx.strokeStyle = "White";
+  counterTwo++;
+  ctx.fillStyle = "black";
+  ctx.lineWidth = 5
+  ctx.fillRect(0, 350, 800, 600);
+  ctx.fillRect(450, 0, 800, 600);
+  ctx.beginPath();
+  ctx.moveTo(0, 350);
+  ctx.lineTo(850, 350);
+  ctx.stroke();
+  ctx.lineWidth = 1;
+  ctx.font = "24px Arial";
+  ctx.strokeText("Scores:", 570, 50);
+  if (lives > 0) {
+    ctx.strokeText("Congratulations, You have Escaped the Caves!", 155, 400);
+    ctx.strokeText("Enjoy the rest of your life in prosperity!", 203, 435);
+  } else {
+    ctx.strokeText("The Caves have taken your life", 240, 390);
+    ctx.strokeText("All the Gems you have collected do not matter now", 130, 420);
+  }
+  if (counterTwo >= 40) {
+    ctx.strokeText("Lives: " + lives + " x $500", 485, 100);
+  }
+  if (counterTwo >= 130) {
+    ctx.strokeText("Red Gems: " + totalGems + " x $50", 485, 150);
+  }
+  if (counterTwo >= 220) {
+    ctx.strokeText("Blue Gems: " + blueCount + " x $200", 485, 200);
+  }
+  if (counterTwo >= 230) {
+    ctx.moveTo(485, 235);
+    ctx.lineTo(777, 235);
+    ctx.stroke();
+  }
+  if (counterTwo >= 240) {
+    ctx.strokeText("Money:    $" + ((lives * 500) + (totalGems * 50) + (blueCount * 200)), 485, 280);
+  }
+  if (counterTwo > 300 && playerX > 230 && playerY < 190) {
+    level = 0;
+    resetAllData();
+  } else if (counterTwo > 300) {
+    ctx.strokeText("Jump over the tent to go back to the Menu..", 180, 500);
+  }
+  if (counterTwo > 250) {
+    ctx.moveTo(450, 305);
+    ctx.lineTo(900, 305);
+    ctx.stroke();
+    ctx.strokeText("Game over", 570, 333);
+  } else if (counterTwo < 5) {
+    ctx.strokeText("L", 485, 100);
+  } else if (counterTwo < 10) {
+    ctx.strokeText("Li", 485, 100);
+  } else if (counterTwo < 15) {
+    ctx.strokeText("Liv", 485, 100);
+  } else if (counterTwo < 20) {
+    ctx.strokeText("Live", 485, 100);
+  } else if (counterTwo < 25) {
+    ctx.strokeText("Lives", 485, 100);
+  } else if (counterTwo < 30) {
+    ctx.strokeText("Lives: ", 485, 100);;
+  } else if (counterTwo < 35) {
+    ctx.strokeText("Lives: " + lives, 485, 100);
+  } else if (counterTwo < 40) {
+    ctx.strokeText("Lives: " + lives + " x $500", 485, 100);
+  } else if (counterTwo == 40) {
+    objectsData.push([735, 72, 44, 36, 10, heartImage, true]);
+  } else if (counterTwo < 50) {
+    ctx.strokeText("R", 485, 150);
+  } else if (counterTwo < 60) {
+    ctx.strokeText("Re", 485, 150);
+  } else if (counterTwo < 70) {
+    ctx.strokeText("Red", 485, 150);
+  } else if (counterTwo < 80) {
+    ctx.strokeText("Red G", 485, 150);
+  } else if (counterTwo < 90) {
+    ctx.strokeText("Red Ge", 485, 150);
+  } else if (counterTwo < 100) {
+    ctx.strokeText("Red Gem", 485, 150);
+  } else if (counterTwo < 110) {
+    ctx.strokeText("Red Gems: ", 485, 150);
+  } else if (counterTwo < 120) {
+    ctx.strokeText("Red Gems: " + totalGems, 485, 150);
+  } else if (counterTwo < 130) {
+    ctx.strokeText("Red Gems: " + totalGems + " x $50", 485, 150);
+  } else if (counterTwo == 130) {
+    objectsData.push([735, 122, 44, 36, 10, gemImage, true]);
+  } else if (counterTwo < 140) {
+    ctx.strokeText("B", 485, 200);
+  } else if (counterTwo < 150) {
+    ctx.strokeText("Bl", 485, 200);
+  } else if (counterTwo < 160) {
+    ctx.strokeText("Blu", 485, 200);
+  } else if (counterTwo < 170) {
+    ctx.strokeText("Blue", 485, 200);
+  } else if (counterTwo < 180) {
+    ctx.strokeText("Blue G", 485, 200);
+  } else if (counterTwo < 190) {
+    ctx.strokeText("Blue Ge", 485, 200);
+  } else if (counterTwo < 190) {
+    ctx.strokeText("Blue Gem", 485, 200);
+  } else if (counterTwo < 200) {
+    ctx.strokeText("Blue Gems:", 485, 200);
+  } else if (counterTwo < 210) {
+    ctx.strokeText("Blue Gems: " + blueCount, 485, 200);
+  } else if (counterTwo < 220) {
+    ctx.strokeText("Blue Gems: " + blueCount + " x $200", 485, 200);
+  } else if (counterTwo == 220) {
+    objectsData.push([735, 172, 44, 36, 10, gemBlueImage, true]);
+  }
+}
+
+function placeObjects() {
+  objectsData.forEach(element => {
+    if (element[4] == level && element[6] == true) {
+      if ((element[5] == gemBlueImage || element[5] == gemImage) && !movingToNextLevel) {
+        if (counter < 10) {
+          ctx.drawImage(element[5], 32 * 0, 0, 32, 34, element[0], element[1], element[2], element[3]);
+        } else if (counter < 20) {
+          ctx.drawImage(element[5], 32 * 1, 0, 32, 32, element[0], element[1], element[2], element[3]);
+        } else if (counter < 30) {
+          ctx.drawImage(element[5], 32 * 2, 0, 32, 32, element[0], element[1], element[2], element[3]);
+        } else if (counter < 40) {
+          ctx.drawImage(element[5], 32 * 3, 0, 32, 32, element[0], element[1], element[2], element[3]);
+        } else if (counter < 50) {
+          ctx.drawImage(element[5], 32 * 4, 0, 32, 32, element[0], element[1], element[2], element[3]);
+        } else if (counter < 61) {
+          ctx.drawImage(element[5], 32 * 5, 0, 32, 32, element[0], element[1], element[2], element[3]);
+        }
+      } else if (element[5] == heartImage) {
+        if (counter < 7) {
+          // image, x, y, width, height, sorx, sory .. sw, sh
+          ctx.drawImage(element[5], 133 * 0, 0, 133, 110, element[0], element[1], element[2], element[3]);
+        } else if (counter < 13) {
+          ctx.drawImage(element[5], 133 * 1, 0, 133, 110, element[0], element[1], element[2], element[3]);
+        } else if (counter < 19) {
+          ctx.drawImage(element[5], 133 * 2, 0, 133, 110, element[0], element[1], element[2], element[3]);
+        } else if (counter < 25) {
+          ctx.drawImage(element[5], 133 * 3, 0, 133, 110, element[0], element[1], element[2], element[3]);
+        } else if (counter < 31) {
+          ctx.drawImage(element[5], 133 * 4, 0, 133, 110, element[0], element[1], element[2], element[3]);
+        } else if (counter < 37) {
+          ctx.drawImage(element[5], 133 * 5, 0, 133, 110, element[0], element[1], element[2], element[3]);
+        } else if (counter < 43) {
+          ctx.drawImage(element[5], 133 * 6, 0, 133, 110, element[0], element[1], element[2], element[3]);
+        } else if (counter < 49) {
+          ctx.drawImage(element[5], 133 * 7, 0, 133, 110, element[0], element[1], element[2], element[3]);
+        } else if (counter < 55) {
+          ctx.drawImage(element[5], 133 * 8, 0, 133, 110, element[0], element[1], element[2], element[3]);
+        } else if (counter < 61) {
+          ctx.drawImage(element[5], 133 * 9, 0, 133, 110, element[0], element[1], element[2], element[3]);
+        }
+      } else if (element[5] != gemImage) {
+        // if the picture is not a gem, do not animation
+        ctx.drawImage(element[5], element[0], element[1], element[2], element[3])
+      }
+    }
+  });
+}
+
+// function debugMode() {
+//   if (playerX > 220 || playerY > 135) {
+//     ctx.fillStyle = "black";
+//     ctx.fillRect(0, 0, 220, 135);
+//   }
+//   ctx.strokeText("Player Y: " + Math.floor(playerY), 10, 25);
+//   ctx.strokeText("Player X: " + Math.floor(playerX), 10, 50);
+//   ctx.strokeText("Gravity: " + gravityAffectedPlayer, 10, 75);
+//   ctx.strokeText("Player State: " + playerState, 10, 100);
+//   ctx.strokeText("Player Direction: " + playerDirection, 10, 125);
+//   ctx.beginPath();
+//   ctx.moveTo(playerX + playerWidth / 2, 0);
+//   ctx.lineTo(playerX + playerWidth / 2, 1000);
+//   ctx.stroke();
+//   ctx.beginPath();
+//   ctx.moveTo(0, playerY + playerHeight / 2);
+//   ctx.lineTo(1000, playerY + playerHeight / 2);
+//   ctx.stroke();
+// }
+
+function buildWalls(specific) {
+  if (!specific) {
+    wallsLocations.forEach(function (element) {
+      if (element[4] == level) {
+        // [x, y, w, h, level] <- element4 = level
+        ctx.drawImage(element[5], element[0], element[1], element[2], element[3]);
+      }
+    });
+  } else {
+    wallsLocations.forEach(function (element) {
+      if (element[4] == specific) {
+        ctx.drawImage(element[5], element[0], element[1], element[2], element[3]);
+      }
+    });
+  }
+}
+updateScreen();
+// this function handles player movement 
+// based on player variables
+window.addEventListener("keydown", handleKeyboard);
+window.addEventListener("keypress", handleKeyboard);
+
+function handleKeyboard(e) {
+  var code = e.keyCode;
+  activateGravity = true;
+  
+  if (!movingToNextLevel) {
+    // if the player pressed left
+    if (code == 37) {
+      arrowVerificator[0] = true;
+    }
+    // if the player pressed right
+    if (code == 39) {
+      arrowVerificator[1] = true;
+    }
+    // if the player pressed up and he is not already jumping
+    if (code == 38 && playerState == "standing") {
+      if (playerCanJump && playerJumpCooldown >= 15 && !gravityAffectedPlayer) {
+        playerJumpOrigin = playerY;
+        playerState = "jumping";
+      }
+    }
+  }
+}
+canvas.addEventListener("touchstart", handleTouch, false);
+canvas.addEventListener("touchend", handleTouchRemoval, false);
+
+function handleTouch(touchEvent) {
+
+    numberOfTouches++;
+    activateGravity = true;
+
+    // get canvas co-ordinates
+    let rectangleBuffer2 = canvas.getBoundingClientRect();
+    touchX = touchEvent.changedTouches[0].clientX - rectangleBuffer2.left;
+    touchY = touchEvent.changedTouches[0].clientY - rectangleBuffer2.top;
+
+    if (!movingToNextLevel) {
+      if (touchX > 400 && numberOfTouches < 2) {
+        arrowVerificatorTouch[1] = true;
+      } else if (touchX < 400 && numberOfTouches < 2) {
+        arrowVerificatorTouch[0] = true;
+      }
+
+      if (numberOfTouches == 2 && playerState == "standing") {
+        if (playerCanJump && playerJumpCooldown >= 15 && !gravityAffectedPlayer) {
+          playerJumpOrigin = playerY;
+          playerState = "jumping";
+        }
+      }
+    }
+
+    // playing the game with a phone is harder so we will handicap the player
+    playerJumpHeight = 16;
+    TouchActive = true;
+}
+
+function handleTouchRemoval() {
+
+    if (numberOfTouches == 1) {
+    arrowVerificatorTouch[0] = false;
+    arrowVerificatorTouch[1] = false;
+    }
+
+    numberOfTouches--;
+}
+
+window.addEventListener("mousedown", handleMouse);
+
+function handleMouse(mouseEvent) {
+  let rectangleBuffer = canvas.getBoundingClientRect();
+  // get mouse x and y inside the canvas
+  MouseX = mouseEvent.clientX - rectangleBuffer.left;
+  MouseY = mouseEvent.clientY - rectangleBuffer.top;
+
+  console.log(MouseX + " " + MouseY)
+  MouseActive = true;
+}
+
+
+
+// if the player stops holding left or right
+// then his direction should be none
+window.addEventListener("keyup", function (e) {
+  if (e.keyCode == 37) {
+    arrowVerificator[0] = false; // arrowVer[0] = left
+  }
+  if (e.keyCode == 39) {
+    arrowVerificator[1] = false; // arrowVer[1] = right
+  }
+});
+
+function playerAnimation() {
+  let imageCoordinateX = 0;
+  if (counter < 10) {
+    imageCoordinateX = 36 * 0;
+  } else if (counter < 20) {
+    imageCoordinateX = 36 * 1;
+  } else if (counter < 30) {
+    imageCoordinateX = 36 * 2;
+  } else if (counter < 40) {
+    imageCoordinateX = 36 * 3;
+  } else if (counter < 50) {
+    imageCoordinateX = 36 * 4;
+  } else if (counter < 61) {
+    imageCoordinateX = 36 * 5;
+  }
+  if (playerDirection == "left") {
+    ctx.drawImage(playerImage, imageCoordinateX, 0, 36, 50, playerX, playerY, playerWidth, playerHeight);
+    imageDirection = "left";
+  } else if (playerDirection == "right") {
+    ctx.drawImage(playerImage, imageCoordinateX, 50, 36, 50, playerX, playerY, playerWidth, playerHeight);
+    imageDirection = "right";
+  } else if (playerDirection == "none" && imageDirection == "right") {
+    ctx.drawImage(playerImage, 0, 50, 36, 50, playerX, playerY, playerWidth, playerHeight);
+  } else if (playerDirection == "none" && imageDirection == "left") {
+    ctx.drawImage(playerImage, 36 * 5, 0, 36, 50, playerX, playerY, playerWidth, playerHeight);
+  }
+}
+
+function playerMovement() {
+  playerAnimation();
+  if (!movingToNextLevel) {
+    // returning gravity to false since we are checking for it manually
+    gravityAffectedPlayer = false;
+    // check for gravity
+    // if player is not jumping the gravity should start to effect him
+    if (activateGravity) {
+      if (playerState == "standing") {
+        gravityCheck();
+      }
+    }
+    if (playerDirection == "left") {
+      if (checkForCollisionWithWalls()) {
+        // if the player is not before the canvas
+        // he can move left
+        if (playerX - playerSpeed > 0) {
+          playerX -= playerSpeed;
+        } else {
+          playerX = 3;
+        }
+      }
+    }
+    if (playerDirection == "right") {
+      if (checkForCollisionWithWalls()) {
+        // if the player is not after the canvas
+        // he can move right
+        if (playerX + playerWidth + playerSpeed < canvas.width) {
+          playerX += playerSpeed;
+        } else {
+          playerX = canvas.width - 3 - playerWidth;
+        }
+      }
+    }
+    if (playerCanJump && playerJumpCooldown >= 2 && !gravityAffectedPlayer) {
+      if (playerState == "jumping") {
+        if (checkForCollisionWithWalls()) {
+          playerY = playerY - (Math.cos(cosineCounter) * playerJumpHeight);
+          cosineCounter += cosineSpeed;
+          if (playerY >= playerJumpOrigin) {
+            playerY = playerJumpOrigin;
+            playerState = "standing";
+            cosineCounter = 0;
+            playerJumpCooldown = 0;
+          }
+        }
+      }
+    } else if (playerJumpCooldown < 2 || gravityAffectedPlayer) {
+      playerState = "standing";
+    }
+    if (playerState == "standing") {
+      checkForCollisionWithWalls();
+    }
+    // death code
+    if (playerY > canvas.height + 400) {
+      playerX = putMeHereIfIDiedX;
+      playerY = putMeHereIfIDiedY;
+      lives--;
+      if (lives < 1) {
+        playerX = 50;
+        playerY = 300;
+        gameHasFinished = true;
+        level = 10;
+        putMeHereIfIDiedX = playerX;
+        putMeHereIfIDiedY = playerY;
+      }
+    } else if (playerY > canvas.height + 5) {
+      willheimSFX.play();
+    }
+  }
+}
+
+function getDistance(x1, y1, x2, y2) {
+  var xDiff = (x1 - x2);
+  var yDiff = (y1 - y2);
+  return Math.sqrt((xDiff * xDiff) + (yDiff * yDiff));
+}
+
+function checkForCollisionWithObjects() {
+  objectsData.forEach(element => {
+    if (element[4] == level) {
+      if ((element[5] == gemBlueImage || element[5] == gemImage) && element[6] == true) {
+        if (
+          getDistance(element[0] + element[2] / 2, element[1] + element[3] / 2, playerX + playerWidth / 2, playerY + playerHeight / 2) <
+          40) {
+          element[6] = false;
+          if (element[5] == gemImage) {
+            gemCount++;
+            totalGems++;
+          } else if (element[5] == gemBlueImage) {
+            blueCount++;
+          }
+          gemSFX.pause();
+          gemSFX.currentTime = 0;
+          gemSFX.play();
+        }
+      }
+    }
+  });
+}
+
+function checkForCollisionWithWalls() {
+  let result = true
+  // these prevent the player from wall climbing
+  // restricting his jump if he collided with walls
+  playerCanJump = true;
+  let jumpCooldownRefresh = 1;
+  // Collision code : WARNING DON'T TOUCH THIS PLEASE
+  wallsLocations.forEach(function (element) {
+    if (element[4] == level) {
+      // Left Collision
+      if (playerDirection == "left") {
+        if (playerX - playerSpeed <= element[0] + element[2] &&
+          playerX - playerSpeed >= element[0] &&
+          playerY + playerHeight > element[1] &&
+          playerY + playerHeight < element[1] + element[3]) {
+          // wall grapple check
+          if (playerY + playerHeight > element[1] && playerY < element[1] &&
+            playerX >= element[0] + element[2] - 2 && playerX <= element[0] + element[2] + 2) {
+            playerY = element[1] - playerHeight - 1;
+            // wall grappling code // playerWidth is wall grapple modifier
+            playerX = element[0] + element[2] - playerWidth / 3;
+          }
+          // if bottom half is colliding
+          if (playerY + playerHeight > element[1] && playerY < element[1] &&
+            playerX > element[0] && playerX + playerWidth < element[0] + element[2]) {
+            gravityAffectedPlayer = true;
+          }
+          /// if only the left bottom corner is colloding
+          if (playerX <= element[0] + element[2] && playerX + playerWidth >= element[0] + element[2] &&
+            playerY + playerHeight >= element[1] && playerY <= element[1]) {
+            gravityAffectedPlayer = true;
+          }
+          if (gravityAffectedPlayer || playerState == "jumping") {
+            playerState = "standing";
+            cosineCounter = 0;
+            playerCanJump = false;
+            jumpCooldownRefresh = 0;
+            playerJumpCooldown = 0;
+            playerX += playerSpeed / 2;
+          } else if (!gravityAffectedPlayer) {
+            playerX += 4;
+          }
+          // a collision has occured
+          result = false;
+        }
+      }
+      // Right Collision
+      if (playerDirection == "right") {
+        if (playerX + playerSpeed + playerWidth <= element[0] + element[2] &&
+          playerX + playerSpeed + playerWidth >= element[0] &&
+          playerY + playerHeight > element[1] &&
+          playerY + playerHeight < element[1] + element[3]) {
+          // wall grapple check
+          if (playerY + playerHeight > element[1] && playerY < element[1] &&
+            playerX + playerWidth >= element[0] - 1 && playerX + playerWidth <= element[0] + 3) {
+            playerY = element[1] - playerHeight - 1
+            // wall grappling code // playerWidth is wall grapple modifier
+            playerX = element[0] - playerWidth / 3;
+          }
+          // if bottom half is colliding
+          if (playerY + playerHeight > element[1] && playerY < element[1] &&
+            playerX > element[0] && playerX + playerWidth < element[0] + element[2]) {
+            gravityAffectedPlayer = true;
+          }
+          /// if only the right bottom corner is colloding
+          if (playerX + playerWidth >= element[0] && playerX <= element[0] &&
+            playerY + playerHeight >= element[1] && playerY <= element[1]) {
+            gravityAffectedPlayer = true;
+          }
+          if (gravityAffectedPlayer || playerState == "jumping") {
+            playerState = "standing";
+            cosineCounter = 0;
+            playerCanJump = false;
+            jumpCooldownRefresh = 0;
+            playerJumpCooldown = 0;
+            playerX -= playerSpeed / 2;
+          } else {
+            playerX -= 4;
+          }
+          // a collision has occured
+          result = false;
+        }
+      }
+      if (playerState == "jumping") {
+        // value holder for jump glitches
+        let velocity = 10;
+        if (playerDirection == "left") {
+          velocity -= playerSpeed;
+        } else if (playerDirection == "right") {
+          velocity += playerSpeed;
+        }
+        /// if only the right bottom corner is colloding
+        if (playerX + playerWidth >= element[0] && playerX <= element[0] &&
+          playerY + playerHeight >= element[1] && playerY <= element[1]) {
+          playerY = element[1] - playerHeight - 2;
+          cosineCounter = 0;
+          playerState = "standing";
+        }
+        // if top half is colliding
+        if (playerY + playerHeight > element[1] + element[3] && playerY < element[1] + element[3] &&
+          playerX > element[0] && playerX + playerWidth < element[0] + element[2]) {
+          playerY = element[1] + element[3] + 15;
+          playerState = "standing";
+          cosineCounter = 0;
+        }
+        if (playerY + playerHeight + Math.cos(cosineCounter) > element[1] &&
+          playerY + playerHeight + Math.cos(cosineCounter) < element[1] + element[3] &&
+          playerX <= element[0] + element[2] &&
+          playerX + velocity >= element[0]) {
+          playerState = "standing";
+          cosineCounter = 0;
+          // REMOVING ELEMENT 3 MIGHT FIX RARE BUGS
+          // EDIT: I DID REMOVE IT
+          playerY = element[1] - playerHeight * 0.8 + 1;
+          return false;
+        }
+        /// if only the right top corner is colloding
+        if (playerX + playerWidth >= element[0] && playerX <= element[0] &&
+          playerY <= element[1] + element[3] && playerY + playerHeight >= element[1] + element[3]) {
+          playerY = element[1] + element[3] + 3;
+          return false;
+        }
+        /// if only the left top corner is colloding
+        if (playerX <= element[0] + element[2] && playerX + playerWidth >= element[0] + element[2] &&
+          playerY <= element[1] + element[3] && playerY + playerHeight >= element[1] + element[3]) {
+          playerY = element[1] + element[3] + 3;
+          return false;
+        }
+        // roof code
+        if (playerY < element[1] + element[3] && playerY + playerHeight > element[1] + element[3] &&
+          playerX + playerWidth + 10 < element[0] + element[2] && playerX - 10 > element[0]) {
+          playerY = element[1] + element[3] + 5;
+          cosineCounter += 0.1;
+          playerCanJump = false;
+          jumpCooldownRefresh = 0;
+          playerJumpCooldown = 0;
+        }
+      }
+      if (playerState == "standing") {
+        /// if overlapping
+        if (playerX + playerWidth <= element[0] + element[2] && playerX >= element[0] &&
+          playerY + playerHeight <= element[1] + element[3] && playerY >= element[1]) {
+          playerY = element[1] + element[3] + 1;
+          return false;
+        }
+        // if top half is colliding
+        if (playerY + playerHeight > element[1] + element[3] && playerY < element[1] + element[3] &&
+          playerX > element[0] && playerX + playerWidth < element[0] + element[2]) {
+          playerY = element[1] + element[3] + 1;
+          return false;
+        }
+        // if bottom half is colliding
+        if (playerY + playerHeight > element[1] && playerY < element[1] &&
+          playerX > element[0] && playerX + playerWidth < element[0] + element[2]) {
+          playerY = element[1] - playerHeight - 1;
+          return false;
+        }
+        /// if only the right bottom corner is colloding
+        if (playerX + playerWidth >= element[0] && playerX <= element[0] &&
+          playerY + playerHeight >= element[1] && playerY <= element[1]) {
+          playerY = element[1] - playerHeight - 1;
+          return false;
+        }
+        /// if only the left bottom corner is colloding
+        if (playerX <= element[0] + element[2] && playerX + playerWidth >= element[0] + element[2] &&
+          playerY + playerHeight >= element[1] && playerY <= element[1]) {
+          playerY = element[1] - playerHeight - 1;
+          return false;
+        }
+        /// if only the right top corner is colloding
+        if (playerX + playerWidth >= element[0] && playerX <= element[0] &&
+          playerY <= element[1] + element[3] && playerY + playerHeight >= element[1] + element[3]) {
+          playerX = element[0] - playerWidth - 2;
+          return false;
+        }
+        /// if only the left top corner is colloding
+        if (playerX <= element[0] + element[2] && playerX + playerWidth >= element[0] + element[2] &&
+          playerY <= element[1] + element[3] && playerY + playerHeight >= element[1] + element[3]) {
+          playerX = element[0] + element[2] + 2;
+          return false;
+        }
+      }
+    }
+  });
+  playerJumpCooldown += jumpCooldownRefresh;
+  return result
+}
+
+function gravityCheck() {
+  var goDown = true;
+  wallsLocations.forEach((element) => {
+    if (element[4] == level) {
+      if (playerX + playerWidth > element[0] && playerX < element[0] + element[2] &&
+        playerY + playerWidth == element[1] - 1) {
+        goDown = false;
+        if (playerX + 10 > element[0] && playerX + playerWidth - 10 < element[0] + element[2] &&
+          playerY + playerWidth >= element[1] - 1 && playerY + playerWidth <= element[1] + 5) {
+          goDown = false;
+          playerY = element[1] - playerWidth - 1;
+        }
+      }
+    }
+  });
+  if (goDown) {
+    playerY += gravityStrength;
+    gravityAffectedPlayer = true;
+    // THIS REMOVES INFINITE JUMPS
+    playerJumpCooldown = 0;
+  }
+  return goDown
+}
+
+function arrowCheck() {
+  if ((!arrowVerificator[0] && !arrowVerificator[1] && !TouchActive) || (!arrowVerificatorTouch[0] && !arrowVerificatorTouch[1] && TouchActive)) {
+    playerDirection = "none";
+  } else if ((arrowVerificator[0] && arrowVerificator[1] && !TouchActive) || (arrowVerificatorTouch[0] && arrowVerificatorTouch[1] && TouchActive)) {
+    playerDirection = "none";
+  } else if ((!TouchActive && arrowVerificator[0]) || (TouchActive && arrowVerificatorTouch[0])) {
+    playerDirection = "left";
+  } else if ((!TouchActive && arrowVerificator[1]) || (TouchActive && arrowVerificatorTouch[1])) {
+    playerDirection = "right";
+  }
+}
+
+function checkForLevelCompletion() {
+  if (level == 1 || level == 2) {
+    if (playerX == 747 && playerY == 49 &&
+      playerState == "standing" && playerDirection == "right" || movingToNextLevel) {
+      movingToNextLevel = true;
+      nextLevelDirection("right");
+    }
+  } else if (level == 3) {
+    if (playerX > 330 && playerDirection == "right" || movingToNextLevel) {
+      movingToNextLevel = true;
+      // draw splash screen for next level
+      ctx.fillStyle = "#000080";
+      ctx.fillRect(250, 100, 300, 200);
+      //
+      nextLevelDirection("newWorld");
+    }
+  } else if (level == 4) {
+    if (playerX > 745 && playerY == 2 &&
+      playerState == "standing" || movingToNextLevel) {
+      movingToNextLevel = true;
+      nextLevelDirection("up");
+    }
+  } else if (level == 5) {
+    if (playerX <= 8 && playerY == 18 &&
+      playerState == "standing" || movingToNextLevel) {
+      movingToNextLevel = true;
+      nextLevelDirection("up");
+    }
+  } else if (level == 6) {
+    if (playerY == 50 && playerX <= 290 &&
+      playerState == "standing" || movingToNextLevel) {
+      movingToNextLevel = true;
+      // draw splash screen for next level
+      ctx.fillStyle = "#000080";
+      ctx.fillRect(100, 250, 300, 200);
+      // 
+      nextLevelDirection("newWorld");
+    }
+  } else if (level == 7) {
+    if (playerY < 49 && playerX == 3 &&
+      playerState == "standing" || movingToNextLevel) {
+      movingToNextLevel = true;
+      nextLevelDirection("up");
+    }
+  } else if (level == 8) {
+    if (playerY == 3 && playerX == 3 &&
+      playerState == "standing" || movingToNextLevel) {
+      movingToNextLevel = true;
+      nextLevelDirection("up");
+    }
+  } else if (level == 9) {
+    if (playerX > 565 && playerY == 248 &&
+      playerState == "standing" || movingToNextLevel) {
+      movingToNextLevel = true;
+      // draw splash screen for next level
+      ctx.fillStyle = "#0e6b0e";
+      ctx.fillRect(50, 50, 240, 250);
+      // 
+      nextLevelDirection("newWorld");
+    }
+  }
+}
+
+function nextLevelDirection(levelSlideDirection) {
+  // scroll levels to the left (move to right)
+  if (levelSlideDirection == "right") {
+    // scroll walls
+    wallsLocations.forEach(element => {
+      if (element[4] == level || element[4] == level + 1) {
+        element[0] = element[0] - 8;
+      }
+    });
+    // scroll player
+    playerX = playerX - 8;
+    // small adjustment
+    playerX += 0.25 * 2;
+
+    // draw next levels walls
+    buildWalls(level + 1);
+    if (playerX <= -5) {
+      movingToNextLevel = false;
+      playerX = 3;
+      level++;
+      putMeHereIfIDiedX = playerX;
+      putMeHereIfIDiedY = playerY;
+    }
+  } else if (levelSlideDirection == "up") {
+    // move walls down
+    wallsLocations.forEach(element => {
+      if (element[4] == level || element[4] == level + 1) {
+        element[1] += 6;
+      }
+    });
+    // move gems down
+    objectsData.forEach(element => {
+      if (element[4] == level || element[4] == level + 1) {
+        if (element[5] != gemImage && element[5] != gemBlueImage) {
+          element[1] += 6;
+        }
+      }
+    })
+    // move player down
+    // scroll player
+    playerY += 6;
+    // small adjustment
+    playerY -= 0.375;
+    // draw next levels walls
+    buildWalls(level + 1);
+    if (playerY >= canvas.height - playerHeight + 5) { // if under canvas
+      movingToNextLevel = false; // STOP MOVING THE LEVEL!!!
+      playerY = 3 - playerHeight - 50 + canvas.height;
+      level++; // INCREASE THE LEVEL
+      putMeHereIfIDiedX = playerX; // SAVE THE LOCATION INCASE HE DIES
+      putMeHereIfIDiedY = playerY; // 
+    }
+  }
+  // teleport to new levels
+  else if (levelSlideDirection == "newWorld") {
+    nextWorldDelay++;
+    ctx.font = "24px Merriweather";
+    ctx.strokeStyle = "White";
+    playerDirection = "none";
+    if (level == 3) {
+      ctx.strokeText(nextWorldText[0], 320, 140);
+      ctx.strokeText(nextWorldText[1], 335, 190);
+      ctx.strokeText(nextWorldText[2], 275, 260);
+    } else if (level == 6) {
+      ctx.strokeText(nextWorldText[0], 170, 290);
+      ctx.strokeText(nextWorldText[1], 185, 340);
+      ctx.strokeText(nextWorldText[2], 125, 410);
+    } else if (level == 9) {
+      ctx.strokeText("Game Completed", 80, 90);
+      ctx.strokeText("Gems: " + gemCount + " / " + gemsRequired[level / 3 - 1], 105, 140);
+      ctx.strokeText("Gems Total: " + totalGems + " / " + (gemsRequired[0] + gemsRequired[1] + gemsRequired[2]), 75, 190);
+      ctx.strokeText("Blue Gems: " + blueCount + " / 3", 85, 225);
+      if (nextWorldDelay < 113) {
+        ctx.strokeText("3", 165, 270);
+      } else if (nextWorldDelay < 226) {
+        ctx.strokeText("2", 165, 270);
+      } else if (nextWorldDelay < 340) {
+        ctx.strokeText("1", 165, 270);
+      }
+    }
+    if (nextWorldDelay == 340) {
+      nextWorldDelay = 0;
+      level++;
+      movingToNextLevel = false;
+      if (level == 10) {
+        playerX = 50;
+        playerY = 300;
+        gameHasFinished = true;
+      } else {
+        playerX = 200;
+        playerY = canvas.height - 101;
+      }
+      nextWorldText[0] = "";
+      nextWorldText[1] = "";
+      nextWorldText[2] = "";
+      putMeHereIfIDiedX = playerX;
+      putMeHereIfIDiedY = playerY;
+      gemCount = 0;
+    } else if (nextWorldDelay > 290) {
+      nextWorldText[2] = "Starting Next Level in.. 1"; // starting next level
+    } else if (nextWorldDelay > 240) {
+      nextWorldText[2] = "Starting Next Level in.. 2";
+    } else if (nextWorldDelay > 190) {
+      nextWorldText[2] = "Starting Next Level in.. 3";
+    } else if (nextWorldDelay > 140) {
+      nextWorldText[2] = "Starting Next Level in.. 4";
+    } else if (nextWorldDelay > 80) {
+      nextWorldText[2] = "Starting Next Level in.. 5";
+    } else if (nextWorldDelay > 60) {
+      nextWorldText[0] = "Level Completed"; // 0 says level complete
+      nextWorldText[1] = "Gems: " + gemCount + " / " + gemsRequired[level / 3 - 1];
+    } else if (nextWorldDelay > 55) {
+      nextWorldText[0] = "Level Complet";
+      nextWorldText[1] = "Gems: " + gemCount + " / "; // 1 says gem
+    } else if (nextWorldDelay > 50) {
+      nextWorldText[0] = "Level Comp";
+      nextWorldText[1] = "Gems:";
+    } else if (nextWorldDelay > 45) {
+      nextWorldText[0] = "Level Co";
+      nextWorldText[1] = "Gems";
+    } else if (nextWorldDelay > 40) {
+      nextWorldText[0] = "Level";
+      nextWorldText[1] = "Gem";
+    } else if (nextWorldDelay > 35) {
+      nextWorldText[0] = "Lev";
+      nextWorldText[1] = "Ge ";
+    } else if (nextWorldDelay > 30) {
+      nextWorldText[0] = "L";
+      nextWorldText[1] = "G";
+    }
+  }
+}
+
+function resetAllData() {
+  MouseActive = false;
+  playerX = 200;
+  playerY = canvas.height - 101;
+  playerDirection = "none"
+  playerState = "standing"
+  activateGravity = false;
+  gravityAffectedPlayer = false;
+  arrowVerificator = [false, false];
+  cosineCounter = 0;
+  movingToNextLevel = false;
+  counter = 1;
+  counterTwo = 1;
+  imageDirection = "right"
+  gemCount = 0; // return gems to 0
+  blueCount = 0;
+  totalGems = 0;
+  lives = 10; // return lives to 0
+  putMeHereIfIDiedX = playerX; // return put me back
+  putMeHereIfIDiedY = playerY;
+  nextWorldDelay = 0;
+  nextWorldText = ["", "", ""]
+  gameHasFinished = false;
+  menuNumber = 1;
+  assignArrayValues();
+}
+
+function assignArrayValues() {
+  wallsLocations = [
+    // 0, 1, 2, 3, 4,   5
+    // x, y, w, h, level, image,
+    // level 1
+    [25, 250, 100, 50, 1, planksImage], // bridge
+    [canvas.width - 50, 300, 50, 200, 1, rockImage], // alcove
+    [550, canvas.height - 150, 250, 50, 1, planksImage], // bottom right standing place to
+    [350, canvas.height - 100, 450, 300, 1, rockImage], // under bottom rightest planko
+    [0, canvas.height - 50, 400, 400, 1, rockImage],
+    [500, canvas.height - 50, 300, 300, 1, rockImage], // bottomest right rock
+    [-100, canvas.height - 350, 170, 170, 1, rockImage],
+    [400, 100, 500, 50, 1, rockImage], // toppest right rock
+    [240, 150, 300, 50, 1, planksImage],
+    [canvas.width - 125, 150, 125, 230, 1, rockImage], // semi top right
+    [canvas.width - 450, 300, 100, 100, 1, rockImage],
+    [-200, canvas.height - 70, 300, 300, 1, rockImage],
+    [250, canvas.height - 250, 150, 50, 1, planksImage],
+    [150, -5, 450, 50, 1, rockImage],
+    [500, -5, 300, 50, 1, planksImage], // toppest plank
+    // level 2 (X is always + 800 because level 2 is on the right)
+    [800, 100, 225, 50, 2, planksImage], // starting plank
+    [800, -5, 330, 50, 2, planksImage], // top leftest plank
+    [175 + 800, 150, 50, 315, 2, redMetalImage],
+    [225 + 800, 150, 50, 50, 2, planksImage], // plank sticking out of begining 
+    [395 + 800, 150, 50, 50, 2, planksImage], // plank sticking out of begining 2
+    [498 + 800, 315, 100, 50, 2, planksImage], // plank right of middle rock
+    [448 + 800, 265, 100, 115, 2, rockImage], // middle of screen right big rock
+    [445 + 800, 0, 50, 400, 2, redMetalImage], // middle screen red metal
+    [310 + 800, 255, 50, 50, 2, planksImage], // middle floating plank
+    [830, -100, 800, 100, 2, rockImage], // Secret block, not seen by player to avoid ceiling collision
+    [224 + 800, 415, 50, 50, 2, planksImage], // plank sticking out of end 
+    [395 + 800, 365, 153, 50, 2, planksImage], // plank sticking out of end 2
+    [260 + 800, 550, 250, 150, 2, rockImage], // middlest bottom rock
+    [360 + 800, 500, 50, 50, 2, planksImage], // middle bottom plank
+    [80 + 800, 550, 50, 300, 2, redMetalImage],
+    [803, 400, 50, 50, 2, redMetalImage],
+    [865, 305, 50, 50, 2, redMetalImage],
+    [650 + 800, 552, 100, 50, 2, planksImage], // right  stairs
+    [700 + 800, 502, 100, 50, 2, planksImage], // right  stairs
+    [600 + 800, 365, 50, 50, 2, planksImage], // plank sticking out of end 3
+    [753 + 800, 100, 50, 300, 2, redMetalImage], // rightmost metal
+    [633 + 800, 100, 50, 150, 2, redMetalImage], // semi rightmost metal
+    // level 3 (X is always + 800 because level 3 is on the right)
+    [3 + 800, 100, 150, 50, 3, planksImage], // initial p
+    [800, -100, 800, 100, 3, rockImage], // Secret block, not seen by player to avoid ceiling collision
+    [218 + 800, -100, 900, 500, 3, rockImage], // middle screen red metal
+    [3 + 800, 150, 100, 200, 3, redMetalImage], // 
+    [320 + 800, 500, 200, 200, 3, rockImage],
+    [260 + 800, 550, 320, 250, 3, rockImage],
+    [410 + 800, 600 - 175, 50, 75, 3, winFlagImage],
+    // level 4
+    [300, 450, 50, 300, 4, redMetalImage],
+    [150, canvas.height - 50, 200, 200, 4, planksImage],
+    [150, 370, 50, 50, 4, planksImage],
+    [0, 250, 50, 50, 4, planksImage],
+    [150, 170, 50, 50, 4, planksImage],
+    [350, 210, 50, 50, 4, planksImage],
+    [550, 140, 50, 50, 4, planksImage],
+    [750, 53, 50, 50, 4, planksImage],
+    // level 5 // y is - 600 because level 5 is above level 4
+    [canvas.width - 110, 555 - 600, 55, 50, 5, planksImage],
+    [canvas.width - 50, 555 - 600, 50, 50, 5, ladderImage],
+    [330, 500 - 600, 150, 50, 5, planksImage],
+    [200, 450 - 600, 150, 100, 5, rockImage],
+    [200, 400 - 600, 100, 50, 5, planksImage],
+    [-150, 250 - 600, 200, 200, 5, rockImage],
+    [480, 325 - 600, 100, 50, 5, planksImage],
+    [200, 200 - 600, 130, 50, 5, planksImage],
+    [400, 100 - 600, 50, 150, 5, redMetalImage],
+    [450, 200 - 600, 175, 50, 5, planksImage],
+    [0, 75 - 600, 100, 50, 5, rockImage],
+    // level 6 // y is - 600 because level 6 is above level 5
+    [55, 570 - 600, 250, 50, 6, planksImage],
+    [0, 570 - 600, 50, 50, 6, ladderImage],
+    [400, 450 - 600, 300, 50, 6, planksImage],
+    [600, 350 - 600, 100, 100, 6, rockImage],
+    [100, 175 - 600, 300, 75, 6, rockImage],
+    [150, 125 - 600, 200, 50, 6, rockImage],
+    [225, 50 - 600, 50, 75, 6, winFlagImage],
+    [400, 250 - 600, 100, 50, 6, planksImage],
+    [0, -100 - 600, 800, 100, 6, rockImage], // ceiling
+    // level 7 
+    [175, canvas.height - 50, 100, 200, 7, rockImage],
+    [125, canvas.height - 200, 150, 50, 7, rockImage],
+    [565, canvas.height - 50, 50, 50, 7, planksImage],
+    [615, canvas.height - 200, 50, 50, 7, planksImage],
+    [canvas.width - 50, 275, 50, 200, 7, redMetalImage],
+    [565, 150, 50, 50, 7, planksImage],
+    [225, 200, 100, 50, 7, rockImage],
+    [0, 100, 150, 50, 7, rockImage],
+    [0, 50, 100, 100, 7, rockImage],
+    // level 8 // y is -600 because level is up
+    [55, 555 - 600, 59, 50, 8, planksImage],
+    [0, 555 - 600, 50, 50, 8, ladderImage],
+    [0, 60 - 600, 50, 100, 8, rockImage],
+    [435, 138 - 600, 165, 50, 8, rockImage], // edge of top right
+    [480, 5 - 600, 425, 50, 8, rockImage], // toppest rock right
+    [745, 0 - 600, 55, 230, 8, rockImage], //semi toppest rock right
+    [328, 555 - 600, 58, 50, 8, rockImage],
+    [593, 555 - 600, 55, 50, 8, rockImage],
+    [647, 505 - 600, 55, 50, 8, rockImage],
+    [545, 355 - 600, 55, 50, 8, rockImage],
+    [697, 200 - 600, 155, 50, 8, rockImage],
+    [490, 138 - 600, 55, 100, 8, rockImage],
+    [0, 240 - 600, 140, 100, 8, rockImage],
+    [-100, 90 - 600, 185, 150, 8, rockImage],
+    // level 9
+    [55, 555 - 600, 250, 50, 9, planksImage],
+    [0, 555 - 600, 50, 50, 9, ladderImage],
+    [305, 505 - 600, 300, 105, 9, rockImage],
+    [360, 455 - 600, 250, 155, 9, rockImage],
+    [415, 405 - 600, 300, 205, 9, rockImage],
+    [470, 355 - 600, 300, 255, 9, rockImage],
+    [525, 305 - 600, 300, 305, 9, rockImage],
+    [530, 0 - 600, 280, 185, 9, rockImage],
+    [630, 195 - 600, 160, 165, 9, treasureImage],
+    // score level
+    [0, 350, 450, 50, 10, planksImage],
+    [450, 0, 50, 400, 10, redMetalImage],
+    [300, 200, 150, 150, 10, tentImage]
+  ];
+  objectsData = [
+    // some objects have -600/+600/-800/+800 x or y because level scrolling
+    [749, 2, 50, 50, 4, ladderImage, true],
+    [0, 10 - 600, 50, 60, 5, ladderImage, true],
+    [0, 0, 50, 50, 7, ladderImage, true],
+    [0, 5 - 600, 50, 55, 8, ladderImage, true],
+    [0, 0 - 600, 800, 600, 9, raysImage, true],
+    // level 1 Gems
+    [690, 395, 45, 45, 1, gemImage, true],
+    [130, 310, 45, 45, 1, gemImage, true],
+    [10, 200, 45, 45, 1, gemImage, true],
+    [10, 100, 45, 45, 1, gemImage, true],
+    [250, 210, 45, 45, 1, gemImage, true],
+    [500, 210, 45, 45, 1, gemImage, true],
+    [250, 100, 45, 45, 1, gemImage, true],
+    // level 2 Gems
+    [60, 200, 45, 45, 2, gemImage, true],
+    [115, 310, 45, 45, 2, gemImage, true],
+    [115, 370, 45, 45, 2, gemImage, true],
+    [165, 480, 45, 45, 2, gemImage, true],
+    [385, 10, 45, 45, 2, gemImage, true],
+    [385, 210, 45, 45, 2, gemImage, true],
+    [385, 270, 45, 45, 2, gemImage, true],
+    [225, 210, 45, 45, 2, gemImage, true],
+    [543, 420, 45, 45, 2, gemImage, true],
+    [543, 100, 45, 45, 2, gemImage, true],
+    [688, 150, 45, 45, 2, gemImage, true],
+    [688, 210, 45, 45, 2, gemImage, true],
+    // level 3 Gems
+    [155, 10, 45, 45, 3, gemImage, true],
+    [155, 100, 45, 45, 3, gemImage, true],
+    [155, 250, 45, 45, 3, gemImage, true],
+    // level 4 Gems
+    [90, 375, 45, 45, 4, gemImage, true],
+    [90, 255, 45, 45, 4, gemImage, true],
+    [290, 215, 45, 45, 4, gemImage, true],
+    [350, 270, 45, 45, 4, gemImage, true],
+    [450, 270, 45, 45, 4, gemImage, true],
+    [5, 5, 45, 45, 4, gemImage, true],
+    [5, 55, 45, 45, 4, gemImage, true],
+    [155, 5, 45, 45, 4, gemImage, true],
+    [355, 5, 45, 45, 4, gemImage, true],
+    [550, 90, 45, 45, 4, gemImage, true],
+    [5, 375, 45, 45, 4, gemImage, true],
+    // level 5 gems
+    [600, 450, 45, 45, 5, gemImage, true],
+    [600, 320, 45, 45, 5, gemImage, true],
+    [740, 320, 45, 45, 5, gemImage, true],
+    [740, 260, 45, 45, 5, gemImage, true],
+    [740, 200, 45, 45, 5, gemImage, true],
+    [740, 50, 45, 45, 5, gemImage, true],
+    [510, 260, 45, 45, 5, gemImage, true],
+    [510, 140, 45, 45, 5, gemImage, true],
+    [400, 30, 45, 45, 5, gemImage, true],
+    [290, 110, 45, 45, 5, gemImage, true],
+    [345, 200, 45, 45, 5, gemImage, true],
+    [225, 340, 45, 45, 5, gemImage, true],
+    [5, 130, 45, 45, 5, gemImage, true],
+    // level 6 gems
+    [430, 170, 45, 45, 6, gemImage, true],
+    [150, 490, 45, 45, 6, gemImage, true],
+    [630, 270, 45, 45, 6, gemImage, true],
+    [510, 370, 45, 45, 6, gemImage, true],
+    [740, 150, 45, 45, 6, gemImage, true],
+    // level 7 gems
+    [10, 200, 45, 45, 7, gemImage, true],
+    [70, 450, 45, 45, 7, gemImage, true],
+    [290, 410, 45, 45, 7, gemImage, true],
+    [225, 260, 45, 45, 7, gemImage, true],
+    [285, 260, 45, 45, 7, gemImage, true],
+    [385, 260, 45, 45, 7, gemImage, true],
+    [445, 260, 45, 45, 7, gemImage, true],
+    [505, 210, 45, 45, 7, gemImage, true],
+    [445, 210, 45, 45, 7, gemImage, true], // 60 gems
+    [750, 220, 45, 45, 7, gemImage, true],
+    [750, 10, 45, 45, 7, gemImage, true],
+    [565, 500, 45, 45, 7, gemImage, true],
+    [285, 150, 45, 45, 7, gemImage, true],
+    [685, 490, 45, 45, 7, gemImage, true],
+    // level 8
+    [215, 290, 45, 45, 8, gemImage, true],
+    [165, 290, 45, 45, 8, gemImage, true],
+    [650, 430, 45, 45, 8, gemImage, true],
+    [710, 330, 45, 45, 8, gemImage, true],
+    [690, 60, 45, 45, 8, gemImage, true],
+    [490, -40, 45, 45, 8, gemBlueImage, true],
+    [690, 110, 45, 45, 8, gemImage, true],
+    [640, 60, 45, 45, 8, gemImage, true],
+    [555, 190, 45, 45, 8, gemImage, true],
+    [440, 190, 45, 45, 8, gemImage, true],
+    [95, 90, 45, 45, 8, gemImage, true],
+    // level 9
+    [310, 455, 45, 45, 9, gemImage, true],
+    [420, 355, 45, 45, 9, gemImage, true],
+    [365, 405, 45, 45, 9, gemBlueImage, true],
+    [475, 305, 45, 45, 9, gemBlueImage, true]
+  ];
+}
+    </script>
+</body>
+
+</html>
